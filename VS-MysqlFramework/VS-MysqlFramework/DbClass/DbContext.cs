@@ -15,6 +15,10 @@ namespace VS_MysqlFramework.DbClass
         private MySqlDataAdapter adapter;
         private MySqlDataReader reader;
 
+        /// <summary>
+        /// MySql Framework
+        /// </summary>
+        /// <param name="connectionString">Veritabanı Bağlantı Anahtarı</param>
         public DbContext(string connectionString)
         {
             con = new MySqlConnection(connectionString);
@@ -380,6 +384,28 @@ namespace VS_MysqlFramework.DbClass
                 if (con.State == ConnectionState.Open)
                     await con.CloseAsync();
             }
+            return result;
+        }
+        /// <summary>
+        /// Gönderilen Sorgu ve Parametrelere Göre DataTable Tipinde Veri Döndürür.
+        /// Test Edildi!
+        /// </summary>
+        public async Task<DataTable> SelectQuery(string query, object param)
+        {
+            var result = new DataTable();
+            try
+            {
+                using (adapter = new MySqlDataAdapter(query, con))
+                {
+                    IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
+                    foreach (PropertyInfo item in properties)
+                    {
+                        adapter.SelectCommand.Parameters.AddWithValue("@"+item.Name,item.GetValue(param,null));
+                    }
+                    await adapter.FillAsync(result);
+                }
+            }
+            catch (Exception) { }
             return result;
         }
     }
