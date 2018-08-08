@@ -11,6 +11,7 @@ DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=d
             }
 ```
 # SelectQuery(List)
+## Required Model
 ```c#
 DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=deneme;Uid=root;Pwd=1234;Ssl Mode=none");
             Task<List<model>> task = Task.Run(()=>dbContext.SelectQuery<model>("SELECT * FROM users"));
