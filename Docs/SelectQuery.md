@@ -10,6 +10,18 @@ DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=d
                 }
             }
 ```
+# SelectQuery(DataTable,Parameter)
+```c#
+DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=deneme;Uid=root;Pwd=1234;Ssl Mode=none");
+            Task<DataTable> task = Task.Run(() => dbContext.SelectQuery("SELECT * FROM users WHERE username=@u",new { u="User 1"}));
+            for (int i = 0; i < task.Result.Rows.Count; i++)
+            {
+                for (int k = 0; k < task.Result.Columns.Count; k++)
+                {
+                    Console.WriteLine(task.Result.Rows[i].ItemArray[k]);
+                }
+            }
+```
 # SelectQuery(List)
 ## Required Model
 ```c#
