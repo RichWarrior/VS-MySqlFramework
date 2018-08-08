@@ -366,7 +366,8 @@ namespace VS_MysqlFramework.DbClass
                             var y = (T)Activator.CreateInstance(typeof(T));
                             foreach (PropertyInfo item in sub_properties)
                             {
-                                item.SetValue(y, reader[item.Name] == DBNull.Value ? null : reader[item.Name]);
+                                var column_name = item.Name.Replace("_"," ");
+                                item.SetValue(y, reader[column_name] == DBNull.Value ? null : reader[column_name]);
                             }
                             result.Add(y);
                         }
