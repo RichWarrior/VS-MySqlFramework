@@ -1,4 +1,4 @@
-# GetDataWithStoredProcedure<DataTable>
+# GetDataWithStoredProcedure(DataTable)
 ```c#
 DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=deneme;Uid=root;Pwd=1234;Ssl Mode=none");
             Task<DataTable> task = Task.Run(()=>dbContext.GetDataWithStoredProcedure(new my_procedure() { first_parameter="User 1" }));
@@ -10,7 +10,8 @@ DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=d
                 }
             }
 ```
-# GetDataWithStoredProcedure<List>
+# GetDataWithStoredProcedure(List)
+## Required Model
 ```c#
 DbClass.DbContext dbContext = new DbClass.DbContext("Server=localhost;Database=deneme;Uid=root;Pwd=1234;Ssl Mode=none");
             Task<List<model>> task = Task.Run(() => dbContext.GetDataWithStoredProcedure<model>(new my_procedure() { first_parameter = "User 1" }));
