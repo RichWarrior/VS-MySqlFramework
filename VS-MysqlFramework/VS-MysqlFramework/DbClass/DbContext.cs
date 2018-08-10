@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Dynamic;
 using System.Reflection;
 using System.Threading.Tasks;
 using VS_MysqlFramework.IDbClass;
@@ -442,6 +443,71 @@ namespace VS_MysqlFramework.DbClass
             }
             catch (Exception) { }
             return result;
+        }
+        public async Task<List<dynamic>> SelectDynamic(string query, object param)
+        {
+            var result = new List<dynamic>();
+            var con = new MySqlConnection(connectionString);
+            MySqlDataReader reader = null;
+            try
+            {
+                var myProperties = new List<PropertyInfo>(param.GetType().GetProperties());
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.CommandText = query;
+                    cmd.Connection = con;
+                    foreach (PropertyInfo item in myProperties)
+                    {
+                        if (item.GetValue(param, null) != null)
+                        {
+                            if (query.Contains("@" + item.Name))
+                            {
+                                cmd.Parameters.Add(new MySqlParameter("@" + item.Name, item.GetValue(param, null)));
+                            }
+
+                        }
+
+                    }
+                    con.Open();
+                    reader = cmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        dynamic y = new ExpandoObject();
+                        var dictionary = (IDictionary<string, object>)y;
+                        for (int i = 0; i < reader.FieldCount; i++)
+                        {
+
+                            dictionary.Add(reader.GetName(i), reader[i] == DBNull.Value ? null : reader[i]);
+
+                        }
+                        result.Add(dictionary);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                if (reader != null)
+                    reader.Close();
+
+                if (con.State == ConnectionState.Open)
+                    await con.CloseAsync();
+            }
+            return result;
+        }
+        /// Gönderilen Procedure Modeli Olmadan Geriye Döndürür.
+
+        public async Task<List<dynamic>> StoredProcedureDynamic(object procedure)
+        {
+            var query = "CALL " + procedure.GetType().Name + " (";
+            IList<PropertyInfo> properties = new List<PropertyInfo>(procedure.GetType().GetProperties());
+            foreach (PropertyInfo item in properties)
+            {
+                query += "@" + item.Name;
+            }
+            return this.SelectDynamic(query, procedure).Result;
         }
     }
 }

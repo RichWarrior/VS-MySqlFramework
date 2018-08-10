@@ -62,6 +62,8 @@ namespace VS_MysqlFramework.IDbClass
         /// Gönderilen Obje Adındaki Tabloya Toplu Insert Yapar
         /// </summary>
         Task<bool> BulkInsert<T>(List<T> param);
+        Task<List<dynamic>> SelectDynamic(string query, object param);
 
+        Task<List<dynamic>> StoredProcedureDynamic(object procedure);
     }
 }
