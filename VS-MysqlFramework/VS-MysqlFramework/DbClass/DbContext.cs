@@ -10,18 +10,15 @@ namespace VS_MysqlFramework.DbClass
 {
     public class DbContext : IDbContext
     {
-        private MySqlConnection con;
-        private MySqlCommand cmd;
-        private MySqlDataAdapter adapter;
-        private MySqlDataReader reader;
 
+        private string connectionString { get; set; }
         /// <summary>
         /// MySql Framework
         /// </summary>
         /// <param name="connectionString">Veritabanı Bağlantı Anahtarı</param>
         public DbContext(string connectionString)
         {
-            con = new MySqlConnection(connectionString);
+            this.connectionString = connectionString;
         }
         /// <summary>
         /// Toplu Insert Yapımı İçin Veritabanı Modeli Oluşturulur ve İçerisine Gönderilen Parametreye Göre Toplu Insert Yapar
@@ -42,35 +39,41 @@ namespace VS_MysqlFramework.DbClass
             subQuery = subQuery.TrimEnd(',') + ") VALUES";
             query = query + subQuery;
             subQuery = "";
-            var index = 0;           
-            try
+            var index = 0;
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                using (cmd = new MySqlCommand())
+                try
                 {
-                    cmd.Connection = con;
-                    foreach (var item in param)
+                    using (var cmd = new MySqlCommand())
                     {
-                        IList<PropertyInfo> props = new List<PropertyInfo>(item.GetType().GetProperties());
-                        paramQuery = "(";
-                        foreach (PropertyInfo sub in props)
+                        cmd.Connection = con;
+                        foreach (var item in param)
                         {
-                            paramQuery += "@" + sub.Name + "_" + index.ToString() + ",";
-                            cmd.Parameters.AddWithValue("@" + sub.Name + "_" + index.ToString(), sub.GetValue(item, null));
-                            index++;
+                            IList<PropertyInfo> props = new List<PropertyInfo>(item.GetType().GetProperties());
+                            paramQuery = "(";
+                            foreach (PropertyInfo sub in props)
+                            {
+                                paramQuery += "@" + sub.Name + "_" + index.ToString() + ",";
+                                cmd.Parameters.AddWithValue("@" + sub.Name + "_" + index.ToString(), sub.GetValue(item, null));
+                                index++;
+                            }
+                            query = query + paramQuery.TrimEnd(',') + "),";
                         }
-                        query = query + paramQuery.TrimEnd(',') + "),";
+                        paramQuery = paramQuery.TrimEnd(',') + "";
+                        query = query.TrimEnd(',');
+                        cmd.CommandText = query;
+                        await con.OpenAsync();
+                        await cmd.ExecuteNonQueryAsync();
+                        result = true;
                     }
-                    paramQuery = paramQuery.TrimEnd(',') + "";
-                    query = query.TrimEnd(',');
-                    cmd.CommandText = query;
-                    await con.OpenAsync();
-                    await cmd.ExecuteNonQueryAsync();
-                    await con.CloseAsync();
-                    result = true;
+                }
+                catch (Exception ex) { Console.WriteLine(ex.Message); }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
                 }
             }
-            catch (Exception ex) { Console.WriteLine(ex.Message); }
-
             return result;
         }
         /// <summary>
@@ -90,28 +93,31 @@ namespace VS_MysqlFramework.DbClass
         public async Task<bool> ExecuteQuery(string query, object param)
         {
             var result = false;
-            try
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
-                using (con)
+                try
                 {
-                    using (cmd = new MySqlCommand() { Connection = con, CommandText = query, CommandType = CommandType.Text })
+                    IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
+
+                    using (var cmd = new MySqlCommand() { Connection = con, CommandText = query, CommandType = CommandType.Text })
                     {
                         foreach (PropertyInfo item in properties)
                         {
                             cmd.Parameters.AddWithValue("@" + item.Name, item.GetValue(param, null));
                         }
+
+                        await con.OpenAsync();
+                        await cmd.ExecuteNonQueryAsync();
+                        result = true;
                     }
-                    await con.OpenAsync();
-                    await cmd.ExecuteNonQueryAsync();
-                    result = true;
+
                 }
-            }
-            catch (Exception) { }
-            finally
-            {
-                if (con.State == ConnectionState.Open)
-                    await con.CloseAsync();
+                catch (Exception) { }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
+                }
             }
             return result;
         }
@@ -122,34 +128,36 @@ namespace VS_MysqlFramework.DbClass
         public async Task<bool> ExecuteStoredProcedure(object stored_procedure)
         {
             var result = false;
-            try
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                var query = "CALL " + stored_procedure.GetType().Name + "(";
-                IList<PropertyInfo> properties = new List<PropertyInfo>(stored_procedure.GetType().GetProperties());
-                foreach (PropertyInfo item in properties)
+                try
                 {
-                    Type type = item.GetValue(stored_procedure, null).GetType();
-                    if (type == typeof(string))
-                        query += "'" + item.GetValue(stored_procedure, null) + "',";
-                    else
-                        query += item.GetValue(stored_procedure, null) + ",";
-                }
-                query = query.TrimEnd(',') + ")";
-                using (con)
-                {
-                    using (cmd = new MySqlCommand() { Connection = con, CommandText = query, CommandType = CommandType.Text })
+                    var query = "CALL " + stored_procedure.GetType().Name + "(";
+                    IList<PropertyInfo> properties = new List<PropertyInfo>(stored_procedure.GetType().GetProperties());
+                    foreach (PropertyInfo item in properties)
+                    {
+                        Type type = item.GetValue(stored_procedure, null).GetType();
+                        if (type == typeof(string))
+                            query += "'" + item.GetValue(stored_procedure, null) + "',";
+                        else
+                            query += item.GetValue(stored_procedure, null) + ",";
+                    }
+                    query = query.TrimEnd(',') + ")";
+
+                    using (var cmd = new MySqlCommand() { Connection = con, CommandText = query, CommandType = CommandType.Text })
                     {
                         await con.OpenAsync();
                         await cmd.ExecuteNonQueryAsync();
                         result = true;
                     }
+
                 }
-            }
-            catch (Exception) { }
-            finally
-            {
-                if (con.State == ConnectionState.Open)
-                    await con.CloseAsync();
+                catch (Exception) { }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
+                }
             }
             return result;
         }
@@ -174,9 +182,16 @@ namespace VS_MysqlFramework.DbClass
 
             }
             query = query.TrimEnd(',') + ")";
-            using (adapter = new MySqlDataAdapter(query, con))
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                await adapter.FillAsync(result);
+                using (var adapter = new MySqlDataAdapter(query, con))
+                {
+                    try
+                    {
+                        await adapter.FillAsync(result);
+                    }
+                    catch (Exception) { }
+                }
             }
             return result;
         }
@@ -192,11 +207,13 @@ namespace VS_MysqlFramework.DbClass
             string query = "CALL " + data.GetType().Name + "(";
             IList<PropertyInfo> properties = new List<PropertyInfo>(data.GetType().GetProperties());
             IList<PropertyInfo> main_properties = new List<PropertyInfo>(typeof(T).GetProperties());
-            try
+            MySqlDataReader reader = null;
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                using (con)
+                try
                 {
-                    using (cmd = new MySqlCommand())
+
+                    using (var cmd = new MySqlCommand())
                     {
                         cmd.Connection = con;
                         foreach (PropertyInfo item in properties)
@@ -226,13 +243,16 @@ namespace VS_MysqlFramework.DbClass
                             }
                         }
                     }
+
                 }
-            }
-            catch (Exception ex) { }
-            finally
-            {
-                if (con.State == ConnectionState.Open)
-                    await con.CloseAsync();
+                catch (Exception) { }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
+                    if (reader != null)
+                        reader.Close();
+                }
             }
             return result;
         }
@@ -244,12 +264,13 @@ namespace VS_MysqlFramework.DbClass
         public async Task<bool> Insert(string query, object param)
         {
             var result = false;
-            try
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
-                using (con)
+                try
                 {
-                    using (cmd = new MySqlCommand() { CommandText = query, Connection = con, CommandType = CommandType.Text })
+                    IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
+
+                    using (var cmd = new MySqlCommand() { CommandText = query, Connection = con, CommandType = CommandType.Text })
                     {
                         foreach (PropertyInfo item in properties)
                         {
@@ -259,13 +280,14 @@ namespace VS_MysqlFramework.DbClass
                         await cmd.ExecuteNonQueryAsync();
                         result = true;
                     }
+
                 }
-            }
-            catch (Exception) { }
-            finally
-            {
-                if (con.State == ConnectionState.Open)
-                    await con.CloseAsync();
+                catch (Exception) { }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
+                }
             }
             return result;
         }
@@ -277,22 +299,23 @@ namespace VS_MysqlFramework.DbClass
         public async Task<bool> Insert(object model)
         {
             var result = false;
-            try
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                var main_query = "INSERT INTO " + model.GetType().Name + "(";
-                var sub_query = "(";
-                IList<PropertyInfo> properties = new List<PropertyInfo>(model.GetType().GetProperties());
-                foreach (PropertyInfo item in properties)
+                try
                 {
-                    main_query += item.Name + ",";
-                    sub_query += "@" + item.Name + ",";
-                }
-                main_query = main_query.TrimEnd(',') + ")";
-                sub_query = sub_query.TrimEnd(',') + ")";
-                main_query = main_query + " VALUES " + sub_query;
-                using (con)
-                {
-                    using (cmd = new MySqlCommand())
+                    var main_query = "INSERT INTO " + model.GetType().Name + "(";
+                    var sub_query = "(";
+                    IList<PropertyInfo> properties = new List<PropertyInfo>(model.GetType().GetProperties());
+                    foreach (PropertyInfo item in properties)
+                    {
+                        main_query += item.Name + ",";
+                        sub_query += "@" + item.Name + ",";
+                    }
+                    main_query = main_query.TrimEnd(',') + ")";
+                    sub_query = sub_query.TrimEnd(',') + ")";
+                    main_query = main_query + " VALUES " + sub_query;
+
+                    using (var cmd = new MySqlCommand())
                     {
                         cmd.CommandText = main_query;
                         cmd.CommandType = CommandType.Text;
@@ -305,14 +328,15 @@ namespace VS_MysqlFramework.DbClass
                         await cmd.ExecuteNonQueryAsync();
                         result = true;
                     }
-                }
-            }
-            catch (Exception ex) { }
-            finally
-            {
-                if (con.State == ConnectionState.Open)
-                    await con.CloseAsync();
 
+                }
+                catch (Exception ex) { }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
+
+                }
             }
             return result;
         }
@@ -325,9 +349,12 @@ namespace VS_MysqlFramework.DbClass
             var result = new DataTable();
             try
             {
-                using (adapter = new MySqlDataAdapter(query, con))
+                using (var con = new MySqlConnection(this.connectionString))
                 {
-                    await adapter.FillAsync(result);
+                    using (var adapter = new MySqlDataAdapter(query, con))
+                    {
+                        await adapter.FillAsync(result);
+                    }
                 }
             }
             catch (Exception) { }
@@ -351,11 +378,13 @@ namespace VS_MysqlFramework.DbClass
         public async Task<List<T>> SelectQuery<T>(string query, object param)
         {
             var result = new List<T>();
-            try
+            MySqlDataReader reader = null;
+            using (var con = new MySqlConnection(this.connectionString))
             {
-                using (con)
+                try
                 {
-                    using (cmd = new MySqlCommand() { CommandText = query, Connection = con, CommandType = CommandType.Text })
+
+                    using (var cmd = new MySqlCommand() { CommandText = query, Connection = con, CommandType = CommandType.Text })
                     {
                         IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
                         IList<PropertyInfo> sub_properties = new List<PropertyInfo>(typeof(T).GetProperties());
@@ -370,19 +399,22 @@ namespace VS_MysqlFramework.DbClass
                             var y = (T)Activator.CreateInstance(typeof(T));
                             foreach (PropertyInfo item in sub_properties)
                             {
-                                var column_name = item.Name.Replace("_"," ");
+                                var column_name = item.Name.Replace("_", " ");
                                 item.SetValue(y, reader[column_name] == DBNull.Value ? null : reader[column_name]);
                             }
                             result.Add(y);
                         }
                     }
+
                 }
-            }
-            catch (Exception) { }
-            finally
-            {
-                if (con.State == ConnectionState.Open)
-                    await con.CloseAsync();
+                catch (Exception) { }
+                finally
+                {
+                    if (con.State == ConnectionState.Open)
+                        await con.CloseAsync();
+                    if (reader != null)
+                        reader.Close();
+                }
             }
             return result;
         }
@@ -395,14 +427,17 @@ namespace VS_MysqlFramework.DbClass
             var result = new DataTable();
             try
             {
-                using (adapter = new MySqlDataAdapter(query, con))
+                using (var con = new MySqlConnection(this.connectionString))
                 {
-                    IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
-                    foreach (PropertyInfo item in properties)
+                    using (var adapter = new MySqlDataAdapter(query, con))
                     {
-                        adapter.SelectCommand.Parameters.AddWithValue("@"+item.Name,item.GetValue(param,null));
+                        IList<PropertyInfo> properties = new List<PropertyInfo>(param.GetType().GetProperties());
+                        foreach (PropertyInfo item in properties)
+                        {
+                            adapter.SelectCommand.Parameters.AddWithValue("@" + item.Name, item.GetValue(param, null));
+                        }
+                        await adapter.FillAsync(result);
                     }
-                    await adapter.FillAsync(result);
                 }
             }
             catch (Exception) { }
